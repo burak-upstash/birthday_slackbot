@@ -2,6 +2,8 @@ from urllib import request
 from urllib.parse import parse_qsl
 import json
 import os
+from datetime import date
+
 
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_SIGNING_SECRET = os.getenv("SLACK_SIGNING_SECRET")
@@ -38,11 +40,9 @@ def sendPostRequest(requestURL, bearerToken, data={}):
     resultDict = json.loads(r.read().decode()) 
     return resultDict
 
+
 def responseToDict(res):
     return dict(parse_qsl(res.decode()))
-
-def parseString(string):
-    return string.split()
 
 # May not be necessary for the current implementation...
 def concatStringFromList(stringList, startIndex):
@@ -50,3 +50,20 @@ def concatStringFromList(stringList, startIndex):
     for i in range(startIndex, len(stringList)):
         string += (stringList[i] + " ")
     return string
+
+
+def diffWithTodayFromString(dateString):
+    now = date.today()
+    then = stringToDate(dateString)
+    print("Difference between dates: {}".format(now-then))
+    
+# assuming string is given as: YYYY-MM-DD
+def stringToDate(dateString):
+    dateTokens = dateString.split("-")
+
+    year = int(dateTokens[0])
+    month = int(dateTokens[1])
+    day = int(dateTokens[2])
+
+    return date(year, month, day)
+

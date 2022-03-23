@@ -1,11 +1,12 @@
 from chalice import Chalice, Cron, Rate
 import os
-
-from chalicelib.utils import responseToDict, parseString, postToChannel
-from chalicelib.upstash import postToUpstash, fetchFromUpstash
+from datetime import date
+from chalicelib.utils import responseToDict, postToChannel
+from chalicelib.upstash import fetchFromUpstash, setEvent, getEvent, getAllEvents, removeEvent
 
 app = Chalice(app_name='birthday-slackbot')
 
+print(getAllEvents())
 
 @app.route('/', methods=["GET"])
 def something():
@@ -18,23 +19,52 @@ def something():
 def index():
     r = responseToDict(app.current_request.raw_body)
 
-    command = r['command']
-    stringArray = parseString(r['text'])
+    # command = r['command']
+    
+    # command parameters will be splitted via commas (",")
+    commandArray = r['text'].split(",")
+    command = commandArray[0]
 
-    resultUpstash = postToUpstash(stringArray)
-    print("Result from Upstash post:", resultUpstash['result'])
+    commandArray.pop(0)
 
-    resultPostChannel = postToChannel('general', 'testing func...')
+    if command == "set":
+        setEvent(commandArray)
+    elif command == "get":
+        stringResult = getEvent(commandArray)
+        return {
+        'response_type': "ephemeral",
+        'text': "Event Details:\n\n {}".format(stringResult)
+        }
+
+    elif command == "get-all":
+        stringResult = getAllEvents()
+        return {
+        'response_type': "ephemeral",
+        'text': "All events: {}".format(stringResult)
+        }
+
+    elif command == "remove":
+        removeEvent(commandArray)
+    else:
+        return {
+        'response_type': "ephemeral",
+        'text': "Usage: `<command>, <event-info>, <MM-DD>, any additional_info as string`, <> represent strings without spaces"
+        }
+
+
+    # resultPostChannel = postToChannel('general', 'testing func...')
 
     return {
+        # Ephemeral since it is a suprise!
         'response_type': "ephemeral",
-        'text': """Command: {}, parameters: {}.""".format(r['command'], resultPostChannel['message']['text'])
+        'text': "splitted: {}".format(commandArray)
+        # 'text': "splitted: {}, {}".format(commandArray, res)
+        # 'text': """Command: {}, parameters: {}.""".format(r['command'], resultPostChannel['message']['text'])
         }
 
 
 # Run at 10:00 am (UTC) every day.
 @app.schedule(Cron(0, 10, '*', '*', '?', '*'))
-# @app.schedule(Cron('*', '*', '*', '*', '?', '*'))
 def periodicCheck(event):
     # Cron job calls this function.
     # This is where the alert system etc will take place.
