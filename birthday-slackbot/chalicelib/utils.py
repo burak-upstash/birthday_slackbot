@@ -7,7 +7,19 @@ from datetime import date
 
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_SIGNING_SECRET = os.getenv("SLACK_SIGNING_SECRET")
- 
+
+def allSlackUsers():
+    resultDict = sendPostRequest("https://slack.com/api/users.list", SLACK_BOT_TOKEN)
+    members = resultDict['members']
+    
+    userMembers = []
+    for member in members:
+        if not member['deleted'] and not member['is_bot']:
+            userMembers.append([member['name'], member['id']])
+            print(member)
+            print(member['name'], member['id'])
+            print()
+    return userMembers
 
 def channelNameToId(channelName) :
     resultDict = sendPostRequest("https://slack.com/api/conversations.list", SLACK_BOT_TOKEN)
@@ -16,11 +28,7 @@ def channelNameToId(channelName) :
             return channel['id']
     return None
 
-def postToChannel(channel, messageText):
-    channelId = channelNameToId(channel)
-
-    # make sure to use double quotes.
-    # single quotes creates a dictionary...
+def postToSlack(channelId, messageText):
     data = {
         "channel": channelId,
         "text": messageText
@@ -30,6 +38,14 @@ def postToChannel(channel, messageText):
     data = data.encode('utf-8')
     resultDict = sendPostRequest("https://slack.com/api/chat.postMessage", SLACK_BOT_TOKEN, data)
     return resultDict
+
+def postToChannel(channel, messageText):
+    channelId = channelNameToId(channel)
+    return postToSlack(channelId, messageText)
+
+def sendDm(channelId, messageText):
+    return postToSlack(channelId, messageText)
+
 
 def sendPostRequest(requestURL, bearerToken, data={}):
     req = request.Request(requestURL, method="POST", data=data)
@@ -52,18 +68,16 @@ def concatStringFromList(stringList, startIndex):
     return string
 
 
+# Dates are given as: MM-DD
 def diffWithTodayFromString(dateString):
     now = date.today()
-    then = stringToDate(dateString)
-    print("Difference between dates: {}".format(now-then))
-    
-# assuming string is given as: YYYY-MM-DD
-def stringToDate(dateString):
+    currentYear = now.year
+
     dateTokens = dateString.split("-")
+    month = int(dateTokens[0])
+    day = int(dateTokens[1])
 
-    year = int(dateTokens[0])
-    month = int(dateTokens[1])
-    day = int(dateTokens[2])
-
-    return date(year, month, day)
-
+    if now > date(currentYear, month, day):
+        return date((currentYear + 1), month, day) - now
+    return date(currentYear, month, day) - now
+    

@@ -1,12 +1,13 @@
 from chalice import Chalice, Cron, Rate
 import os
 from datetime import date
-from chalicelib.utils import responseToDict, postToChannel
-from chalicelib.upstash import fetchFromUpstash, setEvent, getEvent, getAllEvents, removeEvent
+from chalicelib.utils import responseToDict, postToChannel, diffWithTodayFromString, allSlackUsers, sendDm
+from chalicelib.upstash import setEvent, getEvent, getAllKeys, removeEvent
 
 app = Chalice(app_name='birthday-slackbot')
+NOTIFY_TIME_LIMIT = int(os.getenv("NOTIFY_TIME_LIMIT"))
 
-print(getAllEvents())
+# Don't forget to add hashing of the requests...
 
 @app.route('/', methods=["GET"])
 def something():
@@ -19,8 +20,6 @@ def something():
 def index():
     r = responseToDict(app.current_request.raw_body)
 
-    # command = r['command']
-    
     # command parameters will be splitted via commas (",")
     commandArray = r['text'].split(",")
     command = commandArray[0]
@@ -29,15 +28,22 @@ def index():
 
     if command == "set":
         setEvent(commandArray)
+
     elif command == "get":
-        stringResult = getEvent(commandArray)
+        # call with name of the event
+        resultDict = getEvent(commandArray[0])
         return {
         'response_type': "ephemeral",
-        'text': "Event Details:\n\n {}".format(stringResult)
+        'text': "Event Details:\n\n Date: {}\nAdditional Info:\n{}".format(resultDict[0], resultDict[1])
         }
 
     elif command == "get-all":
-        stringResult = getAllEvents()
+
+        allKeys = getAllKeys()
+        stringResult = "\n"
+        for key in allKeys:
+            stringResult += "- " + key + "\n"
+
         return {
         'response_type': "ephemeral",
         'text': "All events: {}".format(stringResult)
@@ -52,7 +58,6 @@ def index():
         }
 
 
-    # resultPostChannel = postToChannel('general', 'testing func...')
 
     return {
         # Ephemeral since it is a suprise!
@@ -64,28 +69,52 @@ def index():
 
 
 # Run at 10:00 am (UTC) every day.
-@app.schedule(Cron(0, 10, '*', '*', '?', '*'))
+@app.schedule(Cron(15, 1, '*', '*', '?', '*'))
 def periodicCheck(event):
-    # Cron job calls this function.
-    # This is where the alert system etc will take place.
-    
-    # fetch data from Upstash
-    fetchFromUpstash()
-    
-    # see whether there are any birthdays/events coming,
-    # notify people.
-    # DM everyone - the relevant person
-    
-    # notifyPeople()
-
-    # If the day came, than publish a message to general channel
-    # Or any channel you like...
-    postToChannel('general', 'This works I hope...')
-
-@app.schedule(Rate(30, unit=Rate.MINUTES))
-def periodic_task(event):
-    print("Cron 2...")
-    postToChannel('general', 'Cron 2')
+    allKeys = getAllKeys()
+    for key in allKeys:
+        handleEvent(key)
 
 
+def handleEvent(eventName):
+    # if first element is @, then it is a birthday, exclude owner.
+    birthdayEvent = eventName[0] == '@'
+    print("birthdayEvent: {}".format(birthdayEvent))
 
+    eventDict = getEvent(eventName)
+    remainingDays = diffWithTodayFromString(eventDict[0]).days
+
+    if birthdayEvent:
+        birthdayHandler(eventName, remainingDays)
+    else:
+        customEventHandler(eventName, remainingDays)
+
+
+def birthdayHandler(birthdayPerson, remainingDays):
+    print("This is birthday of {}!".format(birthdayPerson))
+
+    if remainingDays == 0:
+        res1 = postToChannel('general', "Happy birthday <{}>!".format(birthdayPerson))
+        print(res1)
+    if remainingDays <= NOTIFY_TIME_LIMIT:
+        # Send personal message to everyone except for <birthdayPerson>
+        dmEveryoneExcept("{} day(s) until {}'s birthday!".format(remainingDays, birthdayPerson), birthdayPerson[1:])
+
+
+def customEventHandler(eventName, remainingDays):
+    print("This is custom event, {}!".format(eventName))
+    print("Diff between today and then: {} day(s)!".format(remainingDays))
+
+    if remainingDays == 0:
+        postToChannel('general', "{} is here!".format(eventName))
+    elif remainingDays <= NOTIFY_TIME_LIMIT:
+        postToChannel('general', "{} day(s) until {}!".format(remainingDays, eventName))
+
+
+def dmEveryoneExcept(message, birthdayPerson):
+    usersAndIds = allSlackUsers()
+    print(usersAndIds)
+    for user in usersAndIds:
+        if user[0] != birthdayPerson:
+            sendDm(user[1], message)
+        
