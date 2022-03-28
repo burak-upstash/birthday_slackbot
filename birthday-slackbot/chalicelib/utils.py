@@ -104,7 +104,7 @@ def validateRequest(header, body):
 
     bodyAsString = ""
     for i in body:
-        bodyAsString += "&{}={}".format(i, body[i].replace("/", "%2F").replace(":", "%3A"))
+        bodyAsString += "&{}={}".format(i, body[i].replace("/", "%2F").replace(":", "%3A").replace(" ", "+"))
 
     jsonStr = json.dumps(body)
     bodyAsString = bodyAsString[1:]
@@ -118,4 +118,5 @@ def validateRequest(header, body):
     hashResult = h.hexdigest()
     mySignature = "v0=" + hashResult
 
+    print(baseString)
     return mySignature == slackSignature
