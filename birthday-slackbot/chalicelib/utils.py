@@ -2,6 +2,8 @@ from urllib import request
 from urllib.parse import parse_qsl
 import json
 import os
+import hmac
+import hashlib
 from datetime import date
 
 
@@ -84,4 +86,36 @@ def diffWithTodayFromString(dateString):
     if now > date(currentYear, month, day):
         return (date((currentYear + 1), month, day) - now).days
     return (date(currentYear, month, day) - now).days
-    
+
+def totalTimefromString(dateString):
+    now = date.today()
+
+    dateTokens = dateString.split("-")
+    year = int(dateTokens[0])
+    month = int(dateTokens[1])
+    day = int(dateTokens[2])
+
+    then = date(year, month, day)
+
+    years = now.year - then.year
+    return years + 1
+
+def validateRequest(header, body):
+
+    bodyAsString = ""
+    for i in body:
+        bodyAsString += "&{}={}".format(i, body[i].replace("/", "%2F").replace(":", "%3A"))
+
+    jsonStr = json.dumps(body)
+    bodyAsString = bodyAsString[1:]
+
+    timestamp = header['x-slack-request-timestamp']
+    slackSignature = header['x-slack-signature'] 
+    baseString = "v0:{}:{}".format(timestamp, bodyAsString)
+
+
+    h =  hmac.new(SLACK_SIGNING_SECRET.encode(), baseString.encode(), hashlib.sha256)
+    hashResult = h.hexdigest()
+    mySignature = "v0=" + hashResult
+
+    return mySignature == slackSignature

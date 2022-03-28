@@ -1,4 +1,4 @@
-from chalicelib.utils import sendPostRequest, getRealName, allSlackUsers, diffWithTodayFromString
+from chalicelib.utils import sendPostRequest, getRealName, allSlackUsers, diffWithTodayFromString, totalTimefromString
 import os
 
 UPSTASH_REST_URL = os.getenv("UPSTASH_REST_URL")
@@ -38,7 +38,7 @@ def getEvent(eventName):
     date = postToUpstash(postQueryParameters)
     
     timeDiff = diffWithTodayFromString(date)
-    totalTime = "SOME TIME CALCULATOR HERE!"
+    totalTime = totalTimefromString(date)
     mergedDict = [date, timeDiff, totalTime]
     return mergedDict
 

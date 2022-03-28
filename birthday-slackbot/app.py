@@ -2,7 +2,7 @@ from chalice import Chalice, Cron, Rate
 import os
 import random
 from datetime import date
-from chalicelib.utils import responseToDict, postToChannel, diffWithTodayFromString, allSlackUsers, sendDm
+from chalicelib.utils import responseToDict, postToChannel, diffWithTodayFromString, allSlackUsers, sendDm, validateRequest
 from chalicelib.upstash import setHandler, getAllHandler, getEvent, getAllKeys, removeEvent
 
 app = Chalice(app_name='birthday-slackbot')
@@ -20,7 +20,12 @@ def something():
 
 @app.route('/', methods=["POST"], content_types=["application/x-www-form-urlencoded"])
 def index():
+
     r = responseToDict(app.current_request.raw_body)
+    headers = app.current_request.headers
+    # Check validity of the request.
+    if not validateRequest(headers, r):
+        return {"Status": "Validation failed."}
 
     # command parameters will be splitted via commas (",")
     commandArray = r['text'].split()
@@ -37,7 +42,6 @@ def index():
         return {
         'response_type': "ephemeral",
         'text': "`{}` Details:\n\n Date: {}\nRemaining: {} days!".format(eventName, resultDict[0], resultDict[1])
-        # 'text': "{} Details:\n\n Date: {}\nAdditional Info:\n{}".format(eventName, resultDict[0], resultDict[1])
         }
 
     elif command == "get-all":
@@ -57,14 +61,9 @@ def index():
         'text': "Usage: `<command>, <event-info>, <MM-DD>, any additional_info as string`, <> represent strings without spaces"
         }
 
-
-
     return {
-        # Ephemeral since it is a suprise!
         'response_type': "ephemeral",
         'text': "splitted: {}".format(commandArray)
-        # 'text': "splitted: {}, {}".format(commandArray, res)
-        # 'text': """Command: {}, parameters: {}.""".format(r['command'], resultPostChannel['message']['text'])
         }
 
 
@@ -95,7 +94,7 @@ def handleEvent(eventName):
     
     elif eventType == "anniversary":
         print("Anniversary handler")
-        anniversaryHandler(personMention, personName, remainingDays, "SOME TIME CALCULATOR HERE!")
+        anniversaryHandler(personMention, personName, remainingDays, totalTime)
 
     elif eventType == "custom":
         eventMessage = "Not specified"
@@ -113,10 +112,10 @@ def birthdayHandler(personMention, personName, remainingDays):
 
 def anniversaryHandler(personMention, personName, remainingDays, totalTime):
     if remainingDays == 0:
-        sendRandomAnniversaryToChannel('general', personMention)
+        sendRandomAnniversaryToChannel('general', personMention, totalTime)
     if remainingDays <= NOTIFY_TIME_LIMIT:
         # Send personal message to everyone except for <birthdayPerson>
-        dmEveryoneExcept("{} day(s) until {}'s anniversary! It is their {} year!".format(remainingDays, personMention, totalTime), personName)
+        dmEveryoneExcept("{} day(s) until {}'s anniversary! It will be {} year(s) since they joined!".format(remainingDays, personMention, totalTime), personName)
 
 def customHandler(eventMessage, personMention, personName, remainingDays):
     if remainingDays == 0:
