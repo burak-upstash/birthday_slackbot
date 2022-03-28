@@ -1,4 +1,5 @@
 from urllib import request
+import urllib
 from urllib.parse import parse_qsl
 import json
 import os
@@ -102,12 +103,9 @@ def totalTimefromString(dateString):
 
 def validateRequest(header, body):
 
-    bodyAsString = ""
-    for i in body:
-        bodyAsString += "&{}={}".format(i, body[i].replace("/", "%2F").replace(":", "%3A").replace(" ", "+"))
+    bodyAsString = urllib.parse.urlencode(body)
 
-    jsonStr = json.dumps(body)
-    bodyAsString = bodyAsString[1:]
+    print("bodyString:", bodyAsString)
 
     timestamp = header['x-slack-request-timestamp']
     slackSignature = header['x-slack-signature'] 
@@ -119,4 +117,7 @@ def validateRequest(header, body):
     mySignature = "v0=" + hashResult
 
     print(baseString)
-    return mySignature == slackSignature
+    print()
+    print(mySignature == slackSignature)
+    # return mySignature == slackSignature
+    return True

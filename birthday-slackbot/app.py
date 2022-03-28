@@ -165,6 +165,6 @@ def convertToCorrectMention(name):
 
 
 
-allKeys = getAllKeys()
-for key in allKeys:
-    handleEvent(key)
+# allKeys = getAllKeys()
+# for key in allKeys:
+#     handleEvent(key)
