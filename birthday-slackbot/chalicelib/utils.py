@@ -8,6 +8,12 @@ from datetime import date
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_SIGNING_SECRET = os.getenv("SLACK_SIGNING_SECRET")
 
+def getRealName(slackUsers, username):
+    for user in slackUsers:
+        if user[0] == username:
+            return user[2]
+    return "Nameless"
+
 def allSlackUsers():
     resultDict = sendPostRequest("https://slack.com/api/users.list", SLACK_BOT_TOKEN)
     members = resultDict['members']
@@ -15,10 +21,8 @@ def allSlackUsers():
     userMembers = []
     for member in members:
         if not member['deleted'] and not member['is_bot']:
-            userMembers.append([member['name'], member['id']])
-            print(member)
-            print(member['name'], member['id'])
-            print()
+            userMembers.append([member['name'], member['id'], member['real_name']])
+
     return userMembers
 
 def channelNameToId(channelName) :
@@ -68,16 +72,16 @@ def concatStringFromList(stringList, startIndex):
     return string
 
 
-# Dates are given as: MM-DD
+# Dates are given as: YYYY-MM-DD
 def diffWithTodayFromString(dateString):
     now = date.today()
     currentYear = now.year
 
     dateTokens = dateString.split("-")
-    month = int(dateTokens[0])
-    day = int(dateTokens[1])
+    month = int(dateTokens[1])
+    day = int(dateTokens[2])
 
     if now > date(currentYear, month, day):
-        return date((currentYear + 1), month, day) - now
-    return date(currentYear, month, day) - now
+        return (date((currentYear + 1), month, day) - now).days
+    return (date(currentYear, month, day) - now).days
     
