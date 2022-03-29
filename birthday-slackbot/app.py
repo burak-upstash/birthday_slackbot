@@ -33,6 +33,10 @@ def index():
 
     if command == "set":
         setHandler(commandArray)
+        return {
+        'response_type': "ephemeral",
+        'text': "Set the event."
+        }
 
     elif command == "get":
         # call with name of the event
@@ -55,15 +59,19 @@ def index():
     elif command == "remove":
         eventName = "{}-{}".format(commandArray[0], commandArray[1])
         removeEvent(eventName)
+        return {
+        'response_type': "ephemeral",
+        'text': "Removed the event."
+        }
     else:
         return {
         'response_type': "ephemeral",
-        'text': "Usage: `<command>, <event-info>, <MM-DD>, any additional_info as string`, <> represent strings without spaces"
+        'text': "Wrong usage of the command."
         }
 
     return {
         'response_type': "ephemeral",
-        'text': "splitted: {}".format(commandArray)
+        'text': ": Command Received."
         }
 
 
@@ -165,6 +173,6 @@ def convertToCorrectMention(name):
 
 
 
-# allKeys = getAllKeys()
-# for key in allKeys:
-#     handleEvent(key)
+allKeys = getAllKeys()
+for key in allKeys:
+    handleEvent(key)
