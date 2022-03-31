@@ -2,92 +2,96 @@ from chalice import Chalice, Cron, Rate
 import os
 import random
 from datetime import date
-from chalicelib.utils import responseToDict, postToChannel, diffWithTodayFromString, allSlackUsers, sendDm, validateRequest
+from chalicelib.utils import responseToDict, postToChannel, diffWithTodayFromString, allSlackUsers, sendDm, validateRequest, convertToCorrectMention
 from chalicelib.upstash import setHandler, getAllHandler, getEvent, getAllKeys, removeEvent
 
 app = Chalice(app_name='birthday-slackbot')
 NOTIFY_TIME_LIMIT = int(os.getenv("NOTIFY_TIME_LIMIT"))
 
 
-# Don't forget to add hashing of the requests...
-
+# Sample route for get requests.
 @app.route('/', methods=["GET"])
 def something():
     return {
         "Hello": "World"
         }
 
-
+# Configuring POST request endpoint.
+# Command is parsed and handled/directed to handler
 @app.route('/', methods=["POST"], content_types=["application/x-www-form-urlencoded"])
 def index():
 
+    # Parse the body for ease of use
     r = responseToDict(app.current_request.raw_body)
     headers = app.current_request.headers
+
     # Check validity of the request.
     if not validateRequest(headers, r):
         return {"Status": "Validation failed."}
 
-    # command parameters will be splitted via commas (",")
+
     commandArray = r['text'].split()
     command = commandArray.pop(0)
 
-    if command == "set":
-        setHandler(commandArray)
-        return {
-        'response_type': "ephemeral",
-        'text': "Set the event."
-        }
+    try:
+        if command == "set":
+            setHandler(commandArray)
+            return {
+            'response_type': "ephemeral",
+            'text': "Set the event."
+            }
 
-    elif command == "get":
-        # call with name of the event
-        eventType = commandArray[0]
-        eventName = eventType + "-" + commandArray[1]
-        resultDict = getEvent(eventName)
-        return {
-        'response_type': "ephemeral",
-        'text': "`{}` Details:\n\n Date: {}\nRemaining: {} days!".format(eventName, resultDict[0], resultDict[1])
-        }
+        elif command == "get":
+            eventType = commandArray[0]
+            eventName = eventType + "-" + commandArray[1]
+            resultDict = getEvent(eventName)
+            return {
+            'response_type': "ephemeral",
+            'text': "`{}` Details:\n\n Date: {}\nRemaining: {} days!".format(eventName, resultDict[0], resultDict[1])
+            }
 
-    elif command == "get-all":
+        elif command == "get-all":
 
-        stringResult = getAllHandler(commandArray)
-        return {
-        'response_type': "ephemeral",
-        'text': "{}".format(stringResult)
-        }
+            stringResult = getAllHandler(commandArray)
+            return {
+            'response_type': "ephemeral",
+            'text': "{}".format(stringResult)
+            }
 
-    elif command == "remove":
-        eventName = "{}-{}".format(commandArray[0], commandArray[1])
-        removeEvent(eventName)
+        elif command == "remove":
+            eventName = "{}-{}".format(commandArray[0], commandArray[1])
+            removeEvent(eventName)
+            return {
+            'response_type': "ephemeral",
+            'text': "Removed the event."
+            }
+        else:
+            return {
+            'response_type': "ephemeral",
+            'text': "Wrong usage of the command."
+            }
+    except:
+        print("some stuff")
         return {
-        'response_type': "ephemeral",
-        'text': "Removed the event."
-        }
-    else:
-        return {
-        'response_type': "ephemeral",
-        'text': "Wrong usage of the command."
-        }
-
-    return {
-        'response_type': "ephemeral",
-        'text': ": Command Received."
+            'response_type': "ephemeral",
+            'text': "Some problem occured. Please check your command."
         }
 
 
 # Run at 10:00 am (UTC) every day.
-@app.schedule(Cron(7, 11, '*', '*', '?', '*'))
+@app.schedule(Cron(0, 10, '*', '*', '?', '*'))
 def periodicCheck(event):
     allKeys = getAllKeys()
     for key in allKeys:
         handleEvent(key)
 
 
-# This will need to change
+# Generic event is parsed and directed to relevant handlers.
 def handleEvent(eventName):
     eventSplitted = eventName.split('-')
 
     eventType = eventSplitted[0]
+
     # discard @ or ! as a first character
     personName = eventSplitted[1][1:]
     personMention = convertToCorrectMention(personName)
@@ -101,7 +105,6 @@ def handleEvent(eventName):
         birthdayHandler(personMention, personName, remainingDays)
     
     elif eventType == "anniversary":
-        print("Anniversary handler")
         anniversaryHandler(personMention, personName, remainingDays, totalTime)
 
     elif eventType == "custom":
@@ -110,69 +113,58 @@ def handleEvent(eventName):
             eventMessage = eventSplitted[2]
         customHandler(eventMessage, personMention, personName, remainingDays)
 
-
+# Handles birthday events.
 def birthdayHandler(personMention, personName, remainingDays):
     if remainingDays == 0:
         sendRandomBirthdayToChannel('general', personMention)
     if remainingDays <= NOTIFY_TIME_LIMIT:
-        # Send personal message to everyone except for <birthdayPerson>
         dmEveryoneExcept("{} day(s) until {}'s birthday!".format(remainingDays, personMention), personName)
 
+# Handles anniversary events.
 def anniversaryHandler(personMention, personName, remainingDays, totalTime):
     if remainingDays == 0:
         sendRandomAnniversaryToChannel('general', personMention, totalTime)
     if remainingDays <= NOTIFY_TIME_LIMIT:
-        # Send personal message to everyone except for <birthdayPerson>
         dmEveryoneExcept("{} day(s) until {}'s anniversary! It will be {} year(s) since they joined!".format(remainingDays, personMention, totalTime), personName)
 
+# Handles custom events.
 def customHandler(eventMessage, personMention, personName, remainingDays):
     if remainingDays == 0:
         postToChannel('general', "`{}` is here {}!".format(eventMessage, personMention))
     elif remainingDays <= NOTIFY_TIME_LIMIT:
-        dmEveryoneExcept("{} day(s) until `{}`!".format(remainingDays, eventMessage), personName)
-        # postToChannel('general', "{} day(s) until {}!".format(remainingDays, eventName))
+        dmEveryoneExcept("{} day(s) until {} `{}`!".format(remainingDays, personMention, eventMessage), personName)
 
 
+# Sends private message to everyone except for the person given.
 def dmEveryoneExcept(message, person):
-    print("DM {} except {}".format(message, person))
     usersAndIds = allSlackUsers()
     for user in usersAndIds:
         if user[0] != person:
             sendDm(user[1], message)
         
 
-
-# res1 = postToChannel('general', "Happy birthday <!channel>!")
-
-
+# Sends randomly chosen birthday message to specified channel.
 def sendRandomBirthdayToChannel(channel, personMention):
     messageList = [
-        "#1-Birthday {}".format(personMention),
-        "#2-Birthday {}".format(personMention),
-        "#3-Birthday {}".format(personMention),
+        "Happy Birthday {}! Wishing you the best!".format(personMention),
+        "Happy Birthday {}! Wishing you a happy age!".format(personMention),
+        "Happy Birthday {}! Wishing you a healthy, happy life!".format(personMention),
     ]
     message = random.choice(messageList)
     return postToChannel('general', message)
 
+# Sends randomly chosen anniversary message to specified channel.
 def sendRandomAnniversaryToChannel(channel, personMention, totalTime):
     messageList = [
-        "#1-Anniversary {} for {}th year".format(personMention, totalTime),
-        "#2-Anniversary {} for {}th year".format(personMention, totalTime),
-        "#3-Anniversary {} for {}th year".format(personMention, totalTime),
+        "Today is the anniversary of {} joining! It has been {} years since they joined!".format(personMention, totalTime - 1),
+        "Celebrating the anniversary of {} joining! It has been {} years!".format(personMention, totalTime - 1),
+        "Congratulating {} for entering {}(th) year here!".format(personMention, totalTime),
     ]
     message = random.choice(messageList)
     return postToChannel('general', message)
 
 
-def convertToCorrectMention(name):
-    if name == "channel" or name == "here" or name == "everyone":
-        print(name.split("@"))
-        return "<!{}>".format(name)
-    else:
-        return "<@{}>".format(name)
-
-
-
+# We want to run our event handlers when the project is deployed/redeployed.
 allKeys = getAllKeys()
 for key in allKeys:
     handleEvent(key)

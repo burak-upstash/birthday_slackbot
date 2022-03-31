@@ -4,6 +4,7 @@ import os
 UPSTASH_REST_URL = os.getenv("UPSTASH_REST_URL")
 UPSTASH_TOKEN = os.getenv("UPSTASH_TOKEN")
 
+# Posts to Upstash Rest Url with parameters given.
 def postToUpstash(parameters):
     requestURL = UPSTASH_REST_URL
     for parameter in parameters:
@@ -13,13 +14,9 @@ def postToUpstash(parameters):
     return resultDict['result']
 
 
-# /event set birthday $date $user
-# /event set anniversary $date $user
-# /event set custom $date $user $message
-# `@all`
+# Sets key-value pair for the event with given parameters.
 def setEvent(parameterArray):
 
-    #Simply change from RPUSH to SET to use key-value pairs.
     postQueryParameters = ['SET']
 
     for parameter in parameterArray:
@@ -32,7 +29,7 @@ def setEvent(parameterArray):
     return resultDict
 
 
-# Categorize: birthday, anniversary, custom
+# Returns event details from the event given.
 def getEvent(eventName):
     postQueryParameters = ['GET', eventName]
     date = postToUpstash(postQueryParameters)
@@ -42,17 +39,18 @@ def getEvent(eventName):
     mergedDict = [date, timeDiff, totalTime]
     return mergedDict
 
+# Fetches all keys (events) from the database
 def getAllKeys():
     return postToUpstash(['KEYS', '*'])
     
-
+# Deletes given event from the database.
 def removeEvent(eventName):
     postQueryParameters = ['DEL', eventName]
-
     resultDict = postToUpstash(postQueryParameters)
+    return resultDict
 
 
-
+# Handles set request by parsing and configuring setEvent function parameters.
 def setHandler(commandArray):
     eventType = commandArray.pop(0)
     date = commandArray.pop(0)
@@ -77,6 +75,7 @@ def setHandler(commandArray):
     else:
         return
 
+# Handles get-all requests.
 def getAllHandler(commandArray):
     filterParameter = None
     if len(commandArray) == 1:
@@ -106,7 +105,6 @@ def getAllHandler(commandArray):
             realName = getRealName(slackUsers, username)
             details = getEvent(bday)
 
-
             stringResult += "`{}` ({}): {} - `{} days` remaining!\n".format(tag, realName, details[0], details[1])
 
     if filterParameter is None or filterParameter == "anniversary":
@@ -117,7 +115,6 @@ def getAllHandler(commandArray):
             realName = getRealName(slackUsers, username)
             details = getEvent(ann)
             
-
             stringResult += "`{}` ({}): {} - `{} days` remaining!\n".format(tag, realName, details[0], details[1])
         
     if filterParameter is None or filterParameter == "custom":
@@ -128,8 +125,6 @@ def getAllHandler(commandArray):
             realName = getRealName(slackUsers, username)
             details = getEvent(cstm)
             
-            # stringResult += "`{}` ({}): {} - `{} days` remaining!\n".format(tag, realName, details[0], details[2])
-
             stringResult += "`{}-{}` ({}): {}\n".format(splitted[1], splitted[2], getRealName(slackUsers, username), details[0])
 
     return stringResult
